@@ -22,6 +22,12 @@ uvicorn app.main:app --reload
 # open http://127.0.0.1:8000
 ```
 
+## Run from GitHub (no install)
+
+1. Open the repo on GitHub, click **Code** → **Codespaces** → **Create codespace on main**.
+2. Wait for it to start. The app launches by itself and a browser tab opens on port 8000.
+   If it does not, open the **Ports** tab and click the link next to 8000.
+
 ## Tests
 
 ```bash
@@ -37,6 +43,9 @@ A `Dockerfile` is included. It runs on Railway, Render, Fly.io or any VPS:
 docker build -t print-ready .
 docker run -p 8000:8000 print-ready
 ```
+
+Render.com: **New → Blueprint**, pick this repo. `render.yaml` does the rest.
+The free plan has little memory, so large sizes (A3 / A2) may fail there; use a paid plan for those.
 
 ## Layout
 
