@@ -47,6 +47,17 @@ button.go:focus-visible,select:focus-visible,input:focus-visible,.drop:focus-vis
 .tab[aria-selected=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .hint{color:var(--muted);font-size:13px;margin:4px 0 0}
 [hidden]{display:none!important}
+.drop.picking{cursor:default}
+.drop.picking img{cursor:crosshair}
+#preview.cut{background:repeating-conic-gradient(#8884 0 25%,#0000 0 50%) 0 0/16px 16px}
+.pickpanel{margin-top:14px;display:grid;gap:12px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;min-height:32px}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:3px 10px 3px 4px;background:var(--bg);font-size:13px}
+.chip i{width:22px;height:22px;border-radius:50%;border:1px solid var(--line);display:inline-block}
+.chip button{border:0;background:none;color:var(--muted);cursor:pointer;font-size:16px;line-height:1;padding:0 2px}
+.rowbtn{display:flex;gap:8px;flex-wrap:wrap}
+.mini{border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:7px 12px;border-radius:10px;font:inherit;font-size:14px;cursor:pointer}
+input[type=range]{width:100%;accent-color:var(--accent)}
 .msg{margin-top:14px;font-size:15px;min-height:22px}
 .msg.err{color:var(--accent)}.msg.ok{color:var(--ok)}
 .report{display:none;margin-top:16px}
@@ -84,6 +95,26 @@ footer{margin-top:48px;color:var(--muted);font-size:13px}
         <img id="preview" alt="" hidden>
       </div>
       <input type="file" id="file" accept="image/png,image/jpeg,image/webp" hidden>
+      <div class="pickpanel" id="pickPanel" hidden>
+        <p class="hint" data-i18n="pickHint" style="margin:0"></p>
+        <div class="chips" id="chips" aria-live="polite"></div>
+        <div>
+          <label for="tol" data-i18n="tol"></label>
+          <input type="range" id="tol" min="5" max="90" value="30">
+        </div>
+        <div>
+          <label for="scope" data-i18n="scope"></label>
+          <select id="scope">
+            <option value="contiguous" data-i18n="scopeEdge"></option>
+            <option value="everywhere" data-i18n="scopeAll"></option>
+          </select>
+        </div>
+        <div class="rowbtn">
+          <button type="button" class="mini" id="viewBtn"></button>
+          <button type="button" class="mini" id="clearBtn" data-i18n="clearPicks"></button>
+          <button type="button" class="mini" id="changeBtn" data-i18n="changeImg"></button>
+        </div>
+      </div>
     </div>
 
     <form class="card" id="form">
@@ -164,6 +195,10 @@ const T = {
     r_tac: "أقصى حبر (TAC)", r_std: "المعيار",
     f1: "رفع الدقة حسب المقاس المطلوب", f2: "تحويل الألوان لملف FOGRA39", f3t: "هوامش وعلامات قص", f3: "هامش قص + علامات في الزوايا",
     f4: "مع TrimBox و BleedBox وملف الألوان المدمج",
+    pickHint: "اضغط على لون الخلفية داخل الصورة عشان يتحذف. اضغط على أكثر من مكان لو الخلفية فيها أكثر من لون.",
+    tol: "الحساسية (كل ما زادت انحذفت ألوان أقرب)", scope: "نطاق الحذف",
+    scopeEdge: "الخلفية المتصلة فقط (يحافظ على التفاصيل)", scopeAll: "كل مكان فيه هذا اللون",
+    showOrig: "عرض الأصلي", showCut: "عرض النتيجة", clearPicks: "مسح الألوان", changeImg: "تغيير الصورة",
     tabPrint: "ملف طباعة (بوستر/فلاير)", tabDtf: "DTF (تيشيرتات)",
     width: "عرض التصميم (سم)", widthHint: "الطول يتحدد تلقائياً. عرض الصدر المعتاد 25-30 سم.",
     bgm: "إزالة الخلفية", bgAuto: "تلقائي (يُنصح)", bgColor: "خلفية لون واحد", bgAi: "ذكاء اصطناعي (صور وأشخاص)", bgNone: "بدون (الصورة فيها شفافية)",
@@ -184,6 +219,10 @@ const T = {
     r_tac: "Max ink (TAC)", r_std: "Standard",
     f1: "Resampled to the requested size", f2: "Converted with the FOGRA39 profile", f3t: "Bleed & crop marks", f3: "Bleed area plus corner marks",
     f4: "With TrimBox, BleedBox and embedded output intent",
+    pickHint: "Click the background colour inside the image to remove it. Click more spots if the background has several colours.",
+    tol: "Sensitivity (higher removes more similar shades)", scope: "Removal scope",
+    scopeEdge: "Connected background only (keeps details)", scopeAll: "Everywhere this colour appears",
+    showOrig: "Show original", showCut: "Show result", clearPicks: "Clear colours", changeImg: "Change image",
     tabPrint: "Print file (poster/flyer)", tabDtf: "DTF (t-shirts)",
     width: "Design width (cm)", widthHint: "Height follows automatically. Typical chest print: 25-30 cm.",
     bgm: "Background removal", bgAuto: "Auto (recommended)", bgColor: "Flat colour background", bgAi: "AI (photos, people)", bgNone: "None (image already transparent)",
@@ -193,6 +232,7 @@ const T = {
   }
 };
 let lang = "ar", presets = {}, file = null, lastReport = null, mode = "print";
+let picks = [], viewCut = true, origCanvas = null, origUrl = null, pvTimer = null, pvSeq = 0;
 const $ = id => document.getElementById(id);
 
 function applyLang(){
@@ -209,6 +249,7 @@ function applyLang(){
   }
   sel.value = cur || "a4";
   if (lastReport) renderReport(lastReport);
+  $("viewBtn").textContent = viewCut ? T[lang].showOrig : T[lang].showCut;
 }
 
 function setMsg(text, cls = ""){ const m = $("msg"); m.textContent = text; m.className = "msg " + cls; }
@@ -244,8 +285,21 @@ function renderReport(r){
 function pick(f){
   if (!f) return;
   file = f; $("go").disabled = false; setMsg("");
-  const url = URL.createObjectURL(f);
-  $("preview").src = url; $("preview").hidden = false; $("dropEmpty").hidden = true;
+  picks = []; viewCut = true; renderPicks();
+  origUrl = URL.createObjectURL(f);
+  $("preview").classList.remove("cut");
+  $("preview").src = origUrl; $("preview").hidden = false; $("dropEmpty").hidden = true;
+  origCanvas = null;
+  const im = new Image();
+  im.onload = () => {
+    const sc = Math.min(1, 800 / Math.max(im.width, im.height));
+    const c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(im.width * sc)); c.height = Math.max(1, Math.round(im.height * sc));
+    c.getContext("2d", { willReadFrequently: true }).drawImage(im, 0, 0, c.width, c.height);
+    origCanvas = c;
+  };
+  im.src = origUrl;
+  updatePanel();
 }
 
 function setMode(m){
@@ -255,12 +309,76 @@ function setMode(m){
   $("printFields").hidden = m !== "print";
   $("dtfFields").hidden = m !== "dtf";
   $("report").style.display = "none"; lastReport = null; setMsg("");
+  updatePanel(); refreshView();
 }
 $("tabPrint").onclick = () => setMode("print");
 $("tabDtf").onclick = () => setMode("dtf");
 $("langBtn").onclick = () => { lang = lang === "ar" ? "en" : "ar"; applyLang(); };
-$("drop").onclick = () => $("file").click();
-$("drop").onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("file").click(); } };
+function updatePanel(){
+  const on = mode === "dtf" && !!file;
+  $("pickPanel").hidden = !on;
+  $("drop").classList.toggle("picking", on);
+}
+function renderPicks(){
+  const box = $("chips"); box.innerHTML = "";
+  picks.forEach((p, i) => {
+    const chip = document.createElement("span"); chip.className = "chip";
+    const sw = document.createElement("i"); sw.style.background = p.col;
+    const x = document.createElement("button"); x.type = "button"; x.textContent = "×"; x.setAttribute("aria-label", "remove");
+    x.onclick = () => { picks.splice(i, 1); renderPicks(); schedulePreview(); };
+    chip.append(sw, x); box.appendChild(chip);
+  });
+}
+function refreshView(){
+  if (!origUrl) return;
+  const showCut = mode === "dtf" && viewCut && picks.length > 0 && cutUrl;
+  $("preview").src = showCut ? cutUrl : origUrl;
+  $("preview").classList.toggle("cut", !!showCut);
+  $("viewBtn").textContent = viewCut ? T[lang].showOrig : T[lang].showCut;
+}
+let cutUrl = null;
+function schedulePreview(){
+  clearTimeout(pvTimer);
+  if (!picks.length) { cutUrl = null; refreshView(); return; }
+  pvTimer = setTimeout(runPreview, 250);
+}
+async function runPreview(){
+  const seq = ++pvSeq, fd = new FormData();
+  fd.append("file", file);
+  fd.append("picks", JSON.stringify(picks.map(p => [p.x, p.y])));
+  fd.append("tolerance", $("tol").value);
+  fd.append("scope", $("scope").value);
+  try {
+    const res = await fetch("/api/dtf/preview", { method: "POST", body: fd });
+    if (!res.ok) { let m = T[lang].errGeneric; try { m = (await res.json()).error || m; } catch {} throw new Error(m); }
+    const blob = await res.blob();
+    if (seq !== pvSeq) return;  // a newer click replaced this one
+    cutUrl = URL.createObjectURL(blob); viewCut = true; refreshView(); setMsg("");
+  } catch (err) { if (seq === pvSeq) setMsg(err.message, "err"); }
+}
+function onPickClick(e){
+  const r = $("preview").getBoundingClientRect();
+  const fx = (e.clientX - r.left) / r.width, fy = (e.clientY - r.top) / r.height;
+  if (fx < 0 || fx > 1 || fy < 0 || fy > 1 || picks.length >= 20) return;
+  let col = "#999";
+  if (origCanvas) {
+    const x = Math.min(origCanvas.width - 1, Math.floor(fx * origCanvas.width));
+    const y = Math.min(origCanvas.height - 1, Math.floor(fy * origCanvas.height));
+    const d = origCanvas.getContext("2d").getImageData(x, y, 1, 1).data;
+    col = `rgb(${d[0]},${d[1]},${d[2]})`;
+  }
+  picks.push({ x: fx, y: fy, col }); renderPicks(); schedulePreview();
+}
+$("drop").onclick = e => {
+  if (mode === "dtf" && file) { if (e.target === $("preview")) onPickClick(e); return; }
+  $("file").click();
+};
+$("changeBtn").onclick = () => $("file").click();
+$("clearBtn").onclick = () => { picks = []; renderPicks(); schedulePreview(); };
+$("viewBtn").onclick = () => { viewCut = !viewCut; refreshView(); };
+$("tol").oninput = () => schedulePreview();
+$("scope").onchange = () => schedulePreview();
+$("drop").onkeydown = e => { if ((e.key === "Enter" || e.key === " ") && !(mode === "dtf" && file)) { e.preventDefault(); $("file").click(); } };
 $("file").onchange = e => pick(e.target.files[0]);
 ["dragenter","dragover"].forEach(ev => $("drop").addEventListener(ev, e => { e.preventDefault(); $("drop").classList.add("over"); }));
 ["dragleave","drop"].forEach(ev => $("drop").addEventListener(ev, e => { e.preventDefault(); $("drop").classList.remove("over"); }));
@@ -279,6 +397,9 @@ $("form").onsubmit = async e => {
     const bgm = $("bgm").value;
     fd.append("remove_background", bgm === "none" ? "false" : "true");
     fd.append("bg_method", bgm === "none" ? "auto" : bgm);
+    fd.append("picks", JSON.stringify(picks.map(p => [p.x, p.y])));
+    fd.append("tolerance", $("tol").value);
+    fd.append("scope", $("scope").value);
     outName = `${stem}-dtf.zip`;
   } else {
     fd.append("preset", $("preset").value);

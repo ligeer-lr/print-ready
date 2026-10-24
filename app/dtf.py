@@ -8,6 +8,7 @@ Output bundle (zip):
 from __future__ import annotations
 
 import io
+import json
 import os
 import zipfile
 import zlib
@@ -103,6 +104,100 @@ def _color_key(img: Image.Image, bg: np.ndarray, tol: float = 30.0) -> Image.Ima
     rgba = img.convert("RGBA")
     rgba.putalpha(alpha)
     return rgba
+
+
+def _parse_picks(picks: str | None) -> list[tuple[float, float]]:
+    """JSON like [[0.1, 0.2], ...]: click positions as fractions of the image."""
+    if not picks:
+        return []
+    try:
+        data = json.loads(picks)
+        out = [(float(p[0]), float(p[1])) for p in data[:20]]
+    except Exception as exc:  # noqa: BLE001
+        raise ProcessingError("نقاط الألوان غير صالحة / Invalid colour picks") from exc
+    if any(not (0 <= x <= 1 and 0 <= y <= 1) for x, y in out):
+        raise ProcessingError("نقاط الألوان غير صالحة / Invalid colour picks")
+    return out
+
+
+def _pick_key(img: Image.Image, picks: list[tuple[float, float]], tol: float, scope: str) -> Image.Image:
+    """Remove the colours the user clicked on.
+
+    scope "contiguous": only regions touching the border or containing a click
+    (keeps same-coloured details inside the design); "everywhere": every pixel
+    of that colour anywhere.
+    """
+    from scipy import ndimage
+
+    arr = np.asarray(img.convert("RGB"), dtype=np.float32)
+    h, w = arr.shape[:2]
+    pts = [(min(w - 1, int(x * w)), min(h - 1, int(y * h))) for x, y in picks]
+    near = np.zeros((h, w), bool)
+    for x, y in pts:
+        patch = arr[max(0, y - 2) : y + 3, max(0, x - 2) : x + 3].reshape(-1, 3)
+        near |= np.linalg.norm(arr - np.median(patch, axis=0), axis=2) < tol
+    if scope == "everywhere":
+        remove = near
+    else:
+        labels, _ = ndimage.label(near)
+        ids = {int(labels[y, x]) for x, y in pts}
+        ids |= set(np.unique(np.concatenate([labels[0], labels[-1], labels[:, 0], labels[:, -1]])).tolist())
+        ids.discard(0)
+        remove = np.isin(labels, list(ids))
+    alpha = Image.fromarray(np.where(remove, 0, 255).astype(np.uint8), "L")
+    alpha = alpha.filter(ImageFilter.MinFilter(3))  # strip the removed colour's halo
+    rgba = img.convert("RGBA")
+    rgba.putalpha(alpha)
+    return rgba
+
+
+def _cutout(
+    img: Image.Image, *, remove_background: bool, bg_method: str,
+    picks: list[tuple[float, float]], tolerance: float, scope: str,
+) -> tuple[Image.Image, bool]:
+    """Return (RGBA image, background_removed)."""
+    if picks:
+        return _pick_key(img, picks, tolerance, scope), True
+    if not remove_background:
+        return img.convert("RGBA"), False
+    bg, spread = _border_colour(np.asarray(img))
+    use_key = bg_method == "color" or (bg_method == "auto" and spread < 12)
+    return (_color_key(img, bg) if use_key else _remove_bg(img)), True
+
+
+def _check_pick_params(tolerance: float, scope: str) -> None:
+    if not (1 <= tolerance <= 120):
+        raise ProcessingError("Tolerance must be between 1 and 120")
+    if scope not in {"contiguous", "everywhere"}:
+        raise ProcessingError("Invalid scope")
+
+
+def preview_cutout(
+    data: bytes, *, bg_method: str = "auto", picks: str | None = None,
+    tolerance: float = 30.0, scope: str = "contiguous", max_side: int = 900,
+) -> bytes:
+    """Small PNG (RGBA) of the cut-out so the user can check before making the files."""
+    if bg_method not in {"auto", "color", "ai"}:
+        raise ProcessingError("Invalid background method")
+    _check_pick_params(tolerance, scope)
+    pts = _parse_picks(picks)
+    Image.MAX_IMAGE_PIXELS = MAX_PIXELS
+    try:
+        raw = Image.open(io.BytesIO(data))
+        has_alpha = raw.mode in ("RGBA", "LA", "PA") or (raw.mode == "P" and "transparency" in raw.info)
+    except Exception as exc:  # noqa: BLE001
+        raise ProcessingError("تعذّر قراءة الصورة / Could not read the image") from exc
+    if has_alpha:
+        rgba = ImageOps.exif_transpose(raw).convert("RGBA")
+    else:
+        img, icc = _load_image(data)
+        img = _to_srgb(img.convert("RGB"), icc)
+        img.thumbnail((max_side, max_side), Image.LANCZOS)
+        rgba, _ = _cutout(img, remove_background=True, bg_method=bg_method, picks=pts, tolerance=tolerance, scope=scope)
+    rgba.thumbnail((max_side, max_side), Image.LANCZOS)
+    buf = io.BytesIO()
+    rgba.save(buf, "PNG")
+    return buf.getvalue()
 
 
 def _binary_mask(alpha: Image.Image, dpi: int, choke_mm: float) -> tuple[Image.Image, Image.Image]:
@@ -253,6 +348,9 @@ def process_dtf(
     remove_background: bool = True,
     bg_method: str = "auto",
     choke_mm: float = 0.2,
+    picks: str | None = None,
+    tolerance: float = 30.0,
+    scope: str = "contiguous",
     filename: str = "artwork",
 ) -> tuple[bytes, DtfReport]:
     if not (2 <= width_cm <= 60):
@@ -263,6 +361,8 @@ def process_dtf(
         raise ProcessingError("Invalid background method")
     if not (0 <= choke_mm <= 1):
         raise ProcessingError("Choke must be between 0 and 1 mm")
+    _check_pick_params(tolerance, scope)
+    pts = _parse_picks(picks)
 
     # keep the original alpha if the file already has transparency
     Image.MAX_IMAGE_PIXELS = 100_000_000
@@ -278,14 +378,9 @@ def process_dtf(
     else:
         img, icc = _load_image(data)
         img = _to_srgb(img.convert("RGB"), icc)
-        if remove_background:
-            bg, spread = _border_colour(np.asarray(img))
-            use_key = bg_method == "color" or (bg_method == "auto" and spread < 12)
-            rgba = _color_key(img, bg) if use_key else _remove_bg(img)
-            removed = True
-        else:
-            rgba = img.convert("RGBA")
-            removed = False
+        rgba, removed = _cutout(
+            img, remove_background=remove_background, bg_method=bg_method, picks=pts, tolerance=tolerance, scope=scope
+        )
 
     src_size = rgba.size
     alpha = rgba.getchannel("A")

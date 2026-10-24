@@ -10,7 +10,8 @@ Turn any image into a press-ready **PDF/X-1a:2001** file.
 - Converts sRGB → CMYK with the FOGRA39 profile, limits total ink to 300 %
 - Writes TrimBox / BleedBox, embeds the output intent, no RGB or transparency
 - Arabic / English interface
-- **DTF mode** (t-shirts): removes the background (flat-colour keying keeps lettering intact, AI cut-out for photos),
+- **DTF mode** (t-shirts): removes the background. Click the background colour on the image to remove it
+  (live preview, adjustable sensitivity, connected-only or everywhere); automatic flat-colour keying and an AI cut-out are the fallbacks,
   hard edges with no half-transparent pixels, a choked white plate, and a zip with
   `artwork.png`, `white-plate.png` and a PDF/X-1a with the White spot colour
 

@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
-from .dtf import process_dtf
+from .dtf import preview_cutout, process_dtf
 from .processor import PRESETS, ProcessingError, process_image
 
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
@@ -74,6 +74,28 @@ async def convert(
     )
 
 
+@app.post("/api/dtf/preview")
+async def dtf_preview(
+    file: UploadFile = File(...),
+    bg_method: str = Form("auto"),
+    picks: str = Form(""),
+    tolerance: float = Form(30.0),
+    scope: str = Form("contiguous"),
+) -> Response:
+    if file.content_type not in ALLOWED_TYPES:
+        raise HTTPException(415, "PNG / JPG / WebP only")
+    data = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, "File is larger than 25 MB")
+    try:
+        png = await run_in_threadpool(
+            preview_cutout, data, bg_method=bg_method, picks=picks, tolerance=tolerance, scope=scope
+        )
+    except ProcessingError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return Response(content=png, media_type="image/png")
+
+
 @app.post("/api/dtf")
 async def dtf(
     file: UploadFile = File(...),
@@ -81,6 +103,9 @@ async def dtf(
     remove_background: bool = Form(True),
     bg_method: str = Form("auto"),
     choke_mm: float = Form(0.2),
+    picks: str = Form(""),
+    tolerance: float = Form(30.0),
+    scope: str = Form("contiguous"),
 ) -> Response:
     if file.content_type not in ALLOWED_TYPES:
         raise HTTPException(415, "PNG / JPG / WebP only")
@@ -95,6 +120,9 @@ async def dtf(
             remove_background=remove_background,
             bg_method=bg_method,
             choke_mm=choke_mm,
+            picks=picks,
+            tolerance=tolerance,
+            scope=scope,
             filename=file.filename or "artwork",
         )
     except ProcessingError as exc:
