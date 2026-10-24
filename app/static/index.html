@@ -42,6 +42,11 @@ select,input[type=number]{width:100%;padding:10px 12px;border:1px solid var(--li
 button.go{width:100%;padding:14px;border:0;border-radius:12px;background:var(--accent);color:var(--accent-ink);font:700 17px inherit;font-family:inherit;cursor:pointer}
 button.go:disabled{opacity:.45;cursor:not-allowed}
 button.go:focus-visible,select:focus-visible,input:focus-visible,.drop:focus-visible,.lang:focus-visible{outline:3px solid color-mix(in srgb,var(--accent) 55%,transparent);outline-offset:2px}
+.tabs{display:flex;gap:8px;margin:0 0 20px}
+.tab{flex:1;padding:10px 14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:12px;font:500 15px inherit;font-family:inherit;cursor:pointer}
+.tab[aria-selected=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.hint{color:var(--muted);font-size:13px;margin:4px 0 0}
+[hidden]{display:none!important}
 .msg{margin-top:14px;font-size:15px;min-height:22px}
 .msg.err{color:var(--accent)}.msg.ok{color:var(--ok)}
 .report{display:none;margin-top:16px}
@@ -64,6 +69,11 @@ footer{margin-top:48px;color:var(--muted);font-size:13px}
   <h1 data-i18n="title"></h1>
   <p class="lead" data-i18n="lead"></p>
 
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tabPrint" aria-selected="true" type="button" data-i18n="tabPrint"></button>
+    <button class="tab" role="tab" id="tabDtf" aria-selected="false" type="button" data-i18n="tabDtf"></button>
+  </div>
+
   <div class="grid">
     <div class="card">
       <div class="drop" id="drop" tabindex="0" role="button" aria-label="upload">
@@ -77,6 +87,7 @@ footer{margin-top:48px;color:var(--muted);font-size:13px}
     </div>
 
     <form class="card" id="form">
+      <div id="printFields">
       <div class="field">
         <label for="preset" data-i18n="size"></label>
         <select id="preset"></select>
@@ -98,6 +109,25 @@ footer{margin-top:48px;color:var(--muted);font-size:13px}
       <div class="field check">
         <input type="checkbox" id="marks" checked>
         <label for="marks" style="margin:0" data-i18n="marks"></label>
+      </div>
+      </div>
+
+      <div id="dtfFields" hidden>
+        <div class="field">
+          <label for="width" data-i18n="width"></label>
+          <input type="number" id="width" value="25" min="2" max="60" step="0.5" inputmode="decimal">
+          <p class="hint" data-i18n="widthHint"></p>
+        </div>
+        <div class="field">
+          <label for="bgm" data-i18n="bgm"></label>
+          <select id="bgm">
+            <option value="auto" data-i18n="bgAuto"></option>
+            <option value="color" data-i18n="bgColor"></option>
+            <option value="ai" data-i18n="bgAi"></option>
+            <option value="none" data-i18n="bgNone"></option>
+          </select>
+          <p class="hint" data-i18n="bgHint"></p>
+        </div>
       </div>
       <button class="go" id="go" type="submit" disabled data-i18n="go"></button>
       <div class="msg" id="msg" role="status" aria-live="polite"></div>
@@ -126,7 +156,7 @@ const T = {
     lead: "ارفع أي تصميم (Midjourney، DALL·E، أو أي صورة) ونجهّزه للمطبعة: ألوان CMYK، هوامش قص، علامات قص، وملف PDF/X-1a تقبله المطابع.",
     drop: "اسحب الصورة هنا أو اضغط للاختيار", dropHint: "PNG · JPG · WebP — حتى 25 ميجا",
     size: "المقاس", orientation: "الاتجاه", oAuto: "تلقائي", oPortrait: "طولي", oLandscape: "عرضي",
-    bleed: "هامش القص (مم)", marks: "إضافة علامات القص", go: "جهّز ملف الطباعة",
+    bleed: "هامش القص (مم)", marks: "إضافة علامات القص", go: "جهّز الملف",
     working: "جاري التجهيز… قد ياخذ دقيقة للمقاسات الكبيرة", done: "تم! نزل الملف على جهازك.",
     errFile: "اختر صورة أولاً", errGeneric: "صار خطأ، حاول مرة ثانية",
     lowres: "الصورة دقتها منخفضة للمقاس هذا ({dpi} DPI فعلياً). الطباعة ممكن تطلع غير حادة، الأفضل ترفع صورة أكبر.",
@@ -134,6 +164,11 @@ const T = {
     r_tac: "أقصى حبر (TAC)", r_std: "المعيار",
     f1: "رفع الدقة حسب المقاس المطلوب", f2: "تحويل الألوان لملف FOGRA39", f3t: "هوامش وعلامات قص", f3: "هامش قص + علامات في الزوايا",
     f4: "مع TrimBox و BleedBox وملف الألوان المدمج",
+    tabPrint: "ملف طباعة (بوستر/فلاير)", tabDtf: "DTF (تيشيرتات)",
+    width: "عرض التصميم (سم)", widthHint: "الطول يتحدد تلقائياً. عرض الصدر المعتاد 25-30 سم.",
+    bgm: "إزالة الخلفية", bgAuto: "تلقائي (يُنصح)", bgColor: "خلفية لون واحد", bgAi: "ذكاء اصطناعي (صور وأشخاص)", bgNone: "بدون (الصورة فيها شفافية)",
+    bgHint: "للتصاميم والخطوط اختر لون واحد أو تلقائي. الذكاء الاصطناعي ممكن يقص أجزاء من الكتابة.",
+    r_w: "عرض التصميم", r_cov: "تغطية الطبقة البيضاء", r_zip: "المحتوى: artwork.png (شفاف) + white-plate.png + artwork-dtf.pdf",
     foot: "ملاحظة: هذي النسخة الأولى. رفع الدقة حالياً بالتكبير العادي، وتحسينه بالذكاء الاصطناعي يجي لاحقاً."
   },
   en: {
@@ -141,7 +176,7 @@ const T = {
     lead: "Upload any design (Midjourney, DALL·E, or any image) and get a press-ready file: CMYK colour, bleed, crop marks and a PDF/X-1a that print shops accept.",
     drop: "Drop your image here or click to browse", dropHint: "PNG · JPG · WebP — up to 25 MB",
     size: "Size", orientation: "Orientation", oAuto: "Auto", oPortrait: "Portrait", oLandscape: "Landscape",
-    bleed: "Bleed (mm)", marks: "Add crop marks", go: "Make print file",
+    bleed: "Bleed (mm)", marks: "Add crop marks", go: "Make file",
     working: "Processing… large sizes can take up to a minute", done: "Done! Your file is downloading.",
     errFile: "Choose an image first", errGeneric: "Something went wrong, please try again",
     lowres: "This image is low resolution for this size ({dpi} DPI effective). Print may look soft — use a larger source if you can.",
@@ -149,10 +184,15 @@ const T = {
     r_tac: "Max ink (TAC)", r_std: "Standard",
     f1: "Resampled to the requested size", f2: "Converted with the FOGRA39 profile", f3t: "Bleed & crop marks", f3: "Bleed area plus corner marks",
     f4: "With TrimBox, BleedBox and embedded output intent",
+    tabPrint: "Print file (poster/flyer)", tabDtf: "DTF (t-shirts)",
+    width: "Design width (cm)", widthHint: "Height follows automatically. Typical chest print: 25-30 cm.",
+    bgm: "Background removal", bgAuto: "Auto (recommended)", bgColor: "Flat colour background", bgAi: "AI (photos, people)", bgNone: "None (image already transparent)",
+    bgHint: "For graphics and lettering use flat colour or auto. AI can cut away parts of text.",
+    r_w: "Design size", r_cov: "White plate coverage", r_zip: "Contents: artwork.png (transparent) + white-plate.png + artwork-dtf.pdf",
     foot: "Note: this is the first version. Upscaling is standard resampling for now; AI upscaling comes later."
   }
 };
-let lang = "ar", presets = {}, file = null, lastReport = null;
+let lang = "ar", presets = {}, file = null, lastReport = null, mode = "print";
 const $ = id => document.getElementById(id);
 
 function applyLang(){
@@ -164,7 +204,7 @@ function applyLang(){
   sel.innerHTML = "";
   for (const [k, v] of Object.entries(presets)) {
     const o = document.createElement("option");
-    o.value = k; o.textContent = `${v[lang]} — ${v.w}×${v.h} mm`;
+    o.value = k; o.textContent = `${v[lang]} — \u200E${v.w}×${v.h} mm\u200E`;
     sel.appendChild(o);
   }
   sel.value = cur || "a4";
@@ -175,7 +215,14 @@ function setMsg(text, cls = ""){ const m = $("msg"); m.textContent = text; m.cla
 
 function renderReport(r){
   const t = T[lang];
-  const rows = [
+  const rows = r.width_cm ? [
+    [t.r_w, `${r.width_cm} × ${r.height_cm} cm`],
+    [t.r_px, `${r.pixels[0]} × ${r.pixels[1]} @ ${r.dpi} DPI`],
+    [t.r_src, `${r.source_pixels[0]} × ${r.source_pixels[1]} (${r.source_effective_dpi} DPI)`],
+    [t.r_cov, `${r.white_coverage_percent}%`],
+    [t.r_tac, `${r.max_tac_percent}%`],
+    [t.r_std, r.pdf_standard],
+  ] : [
     [t.r_size, `${r.trim_mm[0]} × ${r.trim_mm[1]} mm`],
     [t.r_page, `${r.page_mm[0]} × ${r.page_mm[1]} mm`],
     [t.r_px, `${r.pixels[0]} × ${r.pixels[1]} @ ${r.dpi} DPI`],
@@ -201,6 +248,16 @@ function pick(f){
   $("preview").src = url; $("preview").hidden = false; $("dropEmpty").hidden = true;
 }
 
+function setMode(m){
+  mode = m;
+  $("tabPrint").setAttribute("aria-selected", m === "print");
+  $("tabDtf").setAttribute("aria-selected", m === "dtf");
+  $("printFields").hidden = m !== "print";
+  $("dtfFields").hidden = m !== "dtf";
+  $("report").style.display = "none"; lastReport = null; setMsg("");
+}
+$("tabPrint").onclick = () => setMode("print");
+$("tabDtf").onclick = () => setMode("dtf");
 $("langBtn").onclick = () => { lang = lang === "ar" ? "en" : "ar"; applyLang(); };
 $("drop").onclick = () => $("file").click();
 $("drop").onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("file").click(); } };
@@ -214,13 +271,25 @@ $("form").onsubmit = async e => {
   if (!file) return setMsg(T[lang].errFile, "err");
   const fd = new FormData();
   fd.append("file", file);
-  fd.append("preset", $("preset").value);
-  fd.append("orientation", $("orientation").value);
-  fd.append("bleed_mm", $("bleed").value || "3");
-  fd.append("crop_marks", $("marks").checked ? "true" : "false");
+  let url = "/api/convert", outName;
+  const stem = file.name.replace(/\.[^.]+$/, "");
+  if (mode === "dtf") {
+    url = "/api/dtf";
+    fd.append("width_cm", $("width").value || "25");
+    const bgm = $("bgm").value;
+    fd.append("remove_background", bgm === "none" ? "false" : "true");
+    fd.append("bg_method", bgm === "none" ? "auto" : bgm);
+    outName = `${stem}-dtf.zip`;
+  } else {
+    fd.append("preset", $("preset").value);
+    fd.append("orientation", $("orientation").value);
+    fd.append("bleed_mm", $("bleed").value || "3");
+    fd.append("crop_marks", $("marks").checked ? "true" : "false");
+    outName = `${stem}-${$("preset").value}-print-ready.pdf`;
+  }
   $("go").disabled = true; setMsg(T[lang].working);
   try {
-    const res = await fetch("/api/convert", { method: "POST", body: fd });
+    const res = await fetch(url, { method: "POST", body: fd });
     if (!res.ok) {
       let err = T[lang].errGeneric;
       try { const j = await res.json(); if (j.error) err = j.error; } catch {}
@@ -230,7 +299,7 @@ $("form").onsubmit = async e => {
     const blob = await res.blob();
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `${file.name.replace(/\.[^.]+$/, "")}-${$("preset").value}-print-ready.pdf`;
+    a.download = outName;
     document.body.appendChild(a); a.click(); a.remove();
     setMsg(T[lang].done, "ok"); renderReport(lastReport);
   } catch (err) {

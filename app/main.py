@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
+from .dtf import process_dtf
 from .processor import PRESETS, ProcessingError, process_image
 
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
@@ -67,6 +68,44 @@ async def convert(
         media_type="application/pdf",
         headers={
             "Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}",
+            "X-Report": quote(json.dumps(report.as_dict())),
+            "Access-Control-Expose-Headers": "X-Report, Content-Disposition",
+        },
+    )
+
+
+@app.post("/api/dtf")
+async def dtf(
+    file: UploadFile = File(...),
+    width_cm: float = Form(25.0),
+    remove_background: bool = Form(True),
+    bg_method: str = Form("auto"),
+    choke_mm: float = Form(0.2),
+) -> Response:
+    if file.content_type not in ALLOWED_TYPES:
+        raise HTTPException(415, "PNG / JPG / WebP only")
+    data = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, "File is larger than 25 MB")
+    try:
+        bundle, report = await run_in_threadpool(
+            process_dtf,
+            data,
+            width_cm=width_cm,
+            remove_background=remove_background,
+            bg_method=bg_method,
+            choke_mm=choke_mm,
+            filename=file.filename or "artwork",
+        )
+    except ProcessingError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+    stem = Path(file.filename or "artwork").stem[:60] or "artwork"
+    return Response(
+        content=bundle,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{quote(stem + '-dtf.zip')}",
             "X-Report": quote(json.dumps(report.as_dict())),
             "Access-Control-Expose-Headers": "X-Report, Content-Disposition",
         },

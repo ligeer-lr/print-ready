@@ -10,6 +10,9 @@ Turn any image into a press-ready **PDF/X-1a:2001** file.
 - Converts sRGB → CMYK with the FOGRA39 profile, limits total ink to 300 %
 - Writes TrimBox / BleedBox, embeds the output intent, no RGB or transparency
 - Arabic / English interface
+- **DTF mode** (t-shirts): removes the background (flat-colour keying keeps lettering intact, AI cut-out for photos),
+  hard edges with no half-transparent pixels, a choked white plate, and a zip with
+  `artwork.png`, `white-plate.png` and a PDF/X-1a with the White spot colour
 
 Sizes: A6, A5, A4, A3, A2, business card (portrait / landscape / auto).
 
@@ -60,7 +63,7 @@ tests/             pytest suite
 ## Roadmap
 
 1. AI upscaling (Real-ESRGAN) instead of plain resampling
-2. DTF mode: white underbase plate + background removal
+2. DTF: gang sheets (many designs on one film), halftone
 3. Accounts, credits and subscriptions (Moyasar / Stripe)
 4. More sizes and a custom-size field
 
