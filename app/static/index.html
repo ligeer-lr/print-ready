@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Print Ready — جاهز للطباعة</title>
+<meta name="description" content="حوّل أي صورة إلى ملف طباعة PDF/X-1a جاهز: CMYK، هوامش قص، علامات قص، 300 DPI.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f6f4ef; --surface:#ffffff; --ink:#15130f; --muted:#6b665c; --line:#e3dfd5;
+  --accent:#d6341f; --accent-ink:#ffffff; --ok:#1f7a4d; --warn:#b36a00; --radius:14px;
+}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#111010; --surface:#1b1a19; --ink:#f3f0ea; --muted:#a39d91; --line:#2f2d2a; --accent:#ee4a34; --ok:#4cc38a; --warn:#e0a03a;}
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.6 "IBM Plex Sans Arabic",system-ui,-apple-system,"Segoe UI",sans-serif}
+.wrap{max-width:960px;margin:0 auto;padding:0 16px 64px}
+header{display:flex;justify-content:space-between;align-items:center;padding:20px 0}
+.brand{font-weight:700;font-size:20px;letter-spacing:-.2px}
+.brand i{display:inline-block;width:10px;height:10px;background:var(--accent);border-radius:2px;margin-inline-end:8px;transform:rotate(45deg)}
+.lang{border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:6px 14px;border-radius:999px;cursor:pointer;font:inherit;font-size:14px}
+h1{font-size:clamp(28px,6vw,46px);line-height:1.2;margin:28px 0 12px;letter-spacing:-.5px}
+.lead{color:var(--muted);font-size:18px;max-width:640px;margin:0 0 28px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:20px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:760px){.grid{grid-template-columns:1fr}}
+.drop{border:2px dashed var(--line);border-radius:var(--radius);min-height:260px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px;cursor:pointer;transition:border-color .15s,background .15s;overflow:hidden}
+.drop:hover,.drop.over{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 5%,transparent)}
+.drop img{max-width:100%;max-height:240px;border-radius:8px;display:block}
+.drop strong{display:block;font-size:17px}
+.drop small{color:var(--muted)}
+label{display:block;font-weight:500;font-size:14px;margin:0 0 6px}
+.field{margin-bottom:16px}
+select,input[type=number]{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
+.row{display:flex;gap:12px}.row>*{flex:1}
+.check{display:flex;align-items:center;gap:10px;font-size:15px}
+.check input{width:18px;height:18px;accent-color:var(--accent)}
+button.go{width:100%;padding:14px;border:0;border-radius:12px;background:var(--accent);color:var(--accent-ink);font:700 17px inherit;font-family:inherit;cursor:pointer}
+button.go:disabled{opacity:.45;cursor:not-allowed}
+button.go:focus-visible,select:focus-visible,input:focus-visible,.drop:focus-visible,.lang:focus-visible{outline:3px solid color-mix(in srgb,var(--accent) 55%,transparent);outline-offset:2px}
+.msg{margin-top:14px;font-size:15px;min-height:22px}
+.msg.err{color:var(--accent)}.msg.ok{color:var(--ok)}
+.report{display:none;margin-top:16px}
+.report dl{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;margin:0;font-size:14px}
+.report dt{color:var(--muted)}.report dd{margin:0;font-weight:500;direction:ltr;text-align:start}
+.warn{color:var(--warn);font-size:14px;margin-top:10px}
+.checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:40px 0 0}
+.checks div{padding:14px 16px;background:var(--surface);border:1px solid var(--line);border-radius:12px;font-size:15px}
+.checks b{display:block;margin-bottom:2px}
+footer{margin-top:48px;color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand"><i></i>Print&nbsp;Ready</div>
+    <button class="lang" id="langBtn" type="button">English</button>
+  </header>
+
+  <h1 data-i18n="title"></h1>
+  <p class="lead" data-i18n="lead"></p>
+
+  <div class="grid">
+    <div class="card">
+      <div class="drop" id="drop" tabindex="0" role="button" aria-label="upload">
+        <div id="dropEmpty">
+          <strong data-i18n="drop"></strong>
+          <small data-i18n="dropHint"></small>
+        </div>
+        <img id="preview" alt="" hidden>
+      </div>
+      <input type="file" id="file" accept="image/png,image/jpeg,image/webp" hidden>
+    </div>
+
+    <form class="card" id="form">
+      <div class="field">
+        <label for="preset" data-i18n="size"></label>
+        <select id="preset"></select>
+      </div>
+      <div class="field row">
+        <div>
+          <label for="orientation" data-i18n="orientation"></label>
+          <select id="orientation">
+            <option value="auto" data-i18n="oAuto"></option>
+            <option value="portrait" data-i18n="oPortrait"></option>
+            <option value="landscape" data-i18n="oLandscape"></option>
+          </select>
+        </div>
+        <div>
+          <label for="bleed" data-i18n="bleed"></label>
+          <input type="number" id="bleed" value="3" min="0" max="10" step="0.5" inputmode="decimal">
+        </div>
+      </div>
+      <div class="field check">
+        <input type="checkbox" id="marks" checked>
+        <label for="marks" style="margin:0" data-i18n="marks"></label>
+      </div>
+      <button class="go" id="go" type="submit" disabled data-i18n="go"></button>
+      <div class="msg" id="msg" role="status" aria-live="polite"></div>
+
+      <div class="report" id="report">
+        <dl id="reportList"></dl>
+        <div class="warn" id="lowres" hidden></div>
+      </div>
+    </form>
+  </div>
+
+  <div class="checks">
+    <div><b>300 DPI</b><span data-i18n="f1"></span></div>
+    <div><b>CMYK · FOGRA39</b><span data-i18n="f2"></span></div>
+    <div><b data-i18n="f3t"></b><span data-i18n="f3"></span></div>
+    <div><b>PDF/X-1a:2001</b><span data-i18n="f4"></span></div>
+  </div>
+
+  <footer data-i18n="foot"></footer>
+</div>
+
+<script>
+const T = {
+  ar: {
+    title: "حوّل صورتك إلى ملف طباعة جاهز",
+    lead: "ارفع أي تصميم (Midjourney، DALL·E، أو أي صورة) ونجهّزه للمطبعة: ألوان CMYK، هوامش قص، علامات قص، وملف PDF/X-1a تقبله المطابع.",
+    drop: "اسحب الصورة هنا أو اضغط للاختيار", dropHint: "PNG · JPG · WebP — حتى 25 ميجا",
+    size: "المقاس", orientation: "الاتجاه", oAuto: "تلقائي", oPortrait: "طولي", oLandscape: "عرضي",
+    bleed: "هامش القص (مم)", marks: "إضافة علامات القص", go: "جهّز ملف الطباعة",
+    working: "جاري التجهيز… قد ياخذ دقيقة للمقاسات الكبيرة", done: "تم! نزل الملف على جهازك.",
+    errFile: "اختر صورة أولاً", errGeneric: "صار خطأ، حاول مرة ثانية",
+    lowres: "الصورة دقتها منخفضة للمقاس هذا ({dpi} DPI فعلياً). الطباعة ممكن تطلع غير حادة، الأفضل ترفع صورة أكبر.",
+    r_size: "المقاس بعد القص", r_page: "مقاس الصفحة", r_px: "الدقة بالبكسل", r_src: "دقة الصورة الأصلية",
+    r_tac: "أقصى حبر (TAC)", r_std: "المعيار",
+    f1: "رفع الدقة حسب المقاس المطلوب", f2: "تحويل الألوان لملف FOGRA39", f3t: "هوامش وعلامات قص", f3: "هامش قص + علامات في الزوايا",
+    f4: "مع TrimBox و BleedBox وملف الألوان المدمج",
+    foot: "ملاحظة: هذي النسخة الأولى. رفع الدقة حالياً بالتكبير العادي، وتحسينه بالذكاء الاصطناعي يجي لاحقاً."
+  },
+  en: {
+    title: "Turn your image into a print-ready file",
+    lead: "Upload any design (Midjourney, DALL·E, or any image) and get a press-ready file: CMYK colour, bleed, crop marks and a PDF/X-1a that print shops accept.",
+    drop: "Drop your image here or click to browse", dropHint: "PNG · JPG · WebP — up to 25 MB",
+    size: "Size", orientation: "Orientation", oAuto: "Auto", oPortrait: "Portrait", oLandscape: "Landscape",
+    bleed: "Bleed (mm)", marks: "Add crop marks", go: "Make print file",
+    working: "Processing… large sizes can take up to a minute", done: "Done! Your file is downloading.",
+    errFile: "Choose an image first", errGeneric: "Something went wrong, please try again",
+    lowres: "This image is low resolution for this size ({dpi} DPI effective). Print may look soft — use a larger source if you can.",
+    r_size: "Trim size", r_page: "Page size", r_px: "Pixels", r_src: "Source resolution",
+    r_tac: "Max ink (TAC)", r_std: "Standard",
+    f1: "Resampled to the requested size", f2: "Converted with the FOGRA39 profile", f3t: "Bleed & crop marks", f3: "Bleed area plus corner marks",
+    f4: "With TrimBox, BleedBox and embedded output intent",
+    foot: "Note: this is the first version. Upscaling is standard resampling for now; AI upscaling comes later."
+  }
+};
+let lang = "ar", presets = {}, file = null, lastReport = null;
+const $ = id => document.getElementById(id);
+
+function applyLang(){
+  document.documentElement.lang = lang;
+  document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
+  $("langBtn").textContent = lang === "ar" ? "English" : "العربية";
+  document.querySelectorAll("[data-i18n]").forEach(el => el.textContent = T[lang][el.dataset.i18n]);
+  const sel = $("preset"), cur = sel.value;
+  sel.innerHTML = "";
+  for (const [k, v] of Object.entries(presets)) {
+    const o = document.createElement("option");
+    o.value = k; o.textContent = `${v[lang]} — ${v.w}×${v.h} mm`;
+    sel.appendChild(o);
+  }
+  sel.value = cur || "a4";
+  if (lastReport) renderReport(lastReport);
+}
+
+function setMsg(text, cls = ""){ const m = $("msg"); m.textContent = text; m.className = "msg " + cls; }
+
+function renderReport(r){
+  const t = T[lang];
+  const rows = [
+    [t.r_size, `${r.trim_mm[0]} × ${r.trim_mm[1]} mm`],
+    [t.r_page, `${r.page_mm[0]} × ${r.page_mm[1]} mm`],
+    [t.r_px, `${r.pixels[0]} × ${r.pixels[1]} @ ${r.dpi} DPI`],
+    [t.r_src, `${r.source_pixels[0]} × ${r.source_pixels[1]} (${r.source_effective_dpi} DPI)`],
+    [t.r_tac, `${r.max_tac_percent}%`],
+    [t.r_std, r.pdf_standard],
+  ];
+  const dl = $("reportList"); dl.innerHTML = "";
+  for (const [k, v] of rows) {
+    const dt = document.createElement("dt"), dd = document.createElement("dd");
+    dt.textContent = k; dd.textContent = v; dl.append(dt, dd);
+  }
+  const w = $("lowres");
+  w.hidden = !r.low_resolution;
+  w.textContent = r.low_resolution ? t.lowres.replace("{dpi}", r.source_effective_dpi) : "";
+  $("report").style.display = "block";
+}
+
+function pick(f){
+  if (!f) return;
+  file = f; $("go").disabled = false; setMsg("");
+  const url = URL.createObjectURL(f);
+  $("preview").src = url; $("preview").hidden = false; $("dropEmpty").hidden = true;
+}
+
+$("langBtn").onclick = () => { lang = lang === "ar" ? "en" : "ar"; applyLang(); };
+$("drop").onclick = () => $("file").click();
+$("drop").onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("file").click(); } };
+$("file").onchange = e => pick(e.target.files[0]);
+["dragenter","dragover"].forEach(ev => $("drop").addEventListener(ev, e => { e.preventDefault(); $("drop").classList.add("over"); }));
+["dragleave","drop"].forEach(ev => $("drop").addEventListener(ev, e => { e.preventDefault(); $("drop").classList.remove("over"); }));
+$("drop").addEventListener("drop", e => pick(e.dataTransfer.files[0]));
+
+$("form").onsubmit = async e => {
+  e.preventDefault();
+  if (!file) return setMsg(T[lang].errFile, "err");
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("preset", $("preset").value);
+  fd.append("orientation", $("orientation").value);
+  fd.append("bleed_mm", $("bleed").value || "3");
+  fd.append("crop_marks", $("marks").checked ? "true" : "false");
+  $("go").disabled = true; setMsg(T[lang].working);
+  try {
+    const res = await fetch("/api/convert", { method: "POST", body: fd });
+    if (!res.ok) {
+      let err = T[lang].errGeneric;
+      try { const j = await res.json(); if (j.error) err = j.error; } catch {}
+      throw new Error(err);
+    }
+    lastReport = JSON.parse(decodeURIComponent(res.headers.get("X-Report")));
+    const blob = await res.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${file.name.replace(/\.[^.]+$/, "")}-${$("preset").value}-print-ready.pdf`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setMsg(T[lang].done, "ok"); renderReport(lastReport);
+  } catch (err) {
+    setMsg(err.message || T[lang].errGeneric, "err");
+  } finally { $("go").disabled = false; }
+};
+
+fetch("/api/presets").then(r => r.json()).then(p => { presets = p; applyLang(); });
+applyLang();
+</script>
+</body>
+</html>
